@@ -1,0 +1,29 @@
+plugins {
+    id "application"
+    id 'com.github.johnrengelman.shadow' version '2.0.2'
+    id "net.ltgt.apt-idea" version "0.13"
+}
+
+repositories {
+    jcenter()
+}
+
+mainClassName = 'org.strykeforce.Main'
+
+dependencies {
+//    compile 'org.slf4j:slf4j-api:1.7.25'
+
+    // https://mvnrepository.com/artifact/io.reactivex.rxjava2/rxjava
+    compile group: 'io.reactivex.rxjava2', name: 'rxjava', version: '2.1.7'
+
+    // https://mvnrepository.com/artifact/com.jakewharton.rxrelay2/rxrelay
+    compile group: 'com.jakewharton.rxrelay2', name: 'rxrelay', version: '2.0.0'
+
+    // https://mvnrepository.com/artifact/com.squareup.moshi/moshi
+    compile group: 'com.squareup.moshi', name: 'moshi', version: '1.5.0'
+
+    // https://mvnrepository.com/artifact/ch.qos.logback/logback-classic
+//    compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.3'
+
+    testCompile 'junit:junit:4.12'
+}
