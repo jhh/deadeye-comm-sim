@@ -26,14 +26,11 @@ public class RxUdp {
     return new UdpObserver(address);
   }
 
-  public static Observable<String> observableFrom(int port) {
-    return Observable.<String>create(
+  public static Observable<DatagramPacket> observableFrom(int port) {
+    return Observable.<DatagramPacket>create(
             e -> {
               DatagramSocket socket = new DatagramSocket(port);
-              e.setCancellable(
-                  () -> {
-                    socket.close();
-                  });
+              e.setCancellable(socket::close);
               byte[] buf = new byte[1024];
               DatagramPacket packet = new DatagramPacket(buf, buf.length);
               for (int i = 0; ; i++) {
@@ -48,7 +45,7 @@ public class RxUdp {
                     break;
                   }
                 }
-                e.onNext(new String(packet.getData(), 0, packet.getLength()));
+                e.onNext(packet);
               }
             })
         .subscribeOn(Schedulers.io());
