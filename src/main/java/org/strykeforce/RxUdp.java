@@ -31,7 +31,7 @@ public class RxUdp {
             e -> {
               DatagramSocket socket = new DatagramSocket(port);
               e.setCancellable(socket::close);
-              byte[] buf = new byte[1024];
+              byte[] buf = new byte[512];
               DatagramPacket packet = new DatagramPacket(buf, buf.length);
               for (int i = 0; ; i++) {
                 try {

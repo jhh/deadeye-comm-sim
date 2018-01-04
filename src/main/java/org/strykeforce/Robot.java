@@ -1,9 +1,13 @@
 package org.strykeforce;
 
+import static java.util.concurrent.TimeUnit.*;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.strykeforce.ConnectionEvent.CONNECTED;
 import static org.strykeforce.ConnectionEvent.DISCONNECTED;
 
+import com.codahale.metrics.ConsoleReporter;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistry;
 import io.reactivex.Observable;
 import io.reactivex.schedulers.Timed;
 import java.net.DatagramPacket;
@@ -11,15 +15,21 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
 
 public class Robot {
 
   private static final String PING = "ping";
   private static final String PONG = "pong";
+  private static final int PONG_SZ = PONG.getBytes().length;
+  private static final int DATA_SZ = 4 * Double.BYTES;
   private static final int PING_INTERVAL = 100;
   private static final int PONG_LIMIT = PING_INTERVAL * 4;
   private static final int PORT = 5555;
   private final InetSocketAddress ADDRESS = new InetSocketAddress("192.168.42.129", PORT);
+
+  private final MetricRegistry metrics = new MetricRegistry();
+  private final Meter fps = metrics.meter("FPS");
 
   public void start() {
     System.out.printf(
@@ -37,8 +47,8 @@ public class Robot {
 
     Observable<Timed<String>> pongs =
         messages
+            .filter(p -> p.getLength() == PONG_SZ)
             .map(p -> new String(p.getData(), 0, p.getLength()))
-            .filter(s -> s.equals(PONG))
             .timestamp(MILLISECONDS);
 
     Observable<Timed<Long>> heartbeat =
@@ -50,24 +60,20 @@ public class Robot {
         .startWith(DISCONNECTED)
         .subscribe(System.out::println);
 
-    ByteBuffer byteBuffer = ByteBuffer.allocate(32);
+    ByteBuffer byteBuffer = ByteBuffer.allocate(DATA_SZ);
     byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
 
     messages
-        .filter(p -> p.getLength() == 32)
-//        .doOnNext(Robot::debugDatagramPacket)
+        .filter(p -> p.getLength() == DATA_SZ)
         .map(DatagramPacket::getData)
-//        .doOnNext(Robot::debugByteArray)
         .map(
             bytes -> {
               byteBuffer.clear();
-              byteBuffer.put(bytes, 0, 32);
+              byteBuffer.put(bytes, 0, DATA_SZ);
               byteBuffer.rewind();
               return byteBuffer;
             })
-//        .doOnNext(Robot::debugByteBuffer)
         .map(ByteBuffer::asDoubleBuffer)
-        .doOnNext(db -> System.out.printf("DoubleBuffer capacity = %d%n", db.capacity()))
         .map(
             db -> {
               double[] dest = new double[db.capacity()];
@@ -75,7 +81,13 @@ public class Robot {
               return dest;
             })
         .map(Arrays::toString)
-        .subscribe(System.out::println, throwable -> throwable.printStackTrace());
+        .subscribe(s -> fps.mark(), Throwable::printStackTrace);
+
+    ConsoleReporter reporter = ConsoleReporter.forRegistry(metrics)
+        .convertRatesTo(SECONDS)
+        .convertDurationsTo(MILLISECONDS)
+        .build();
+    reporter.start(10, SECONDS);
   }
 
   private static void debugDatagramPacket(DatagramPacket p) {
