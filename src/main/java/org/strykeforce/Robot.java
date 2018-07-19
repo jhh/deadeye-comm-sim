@@ -1,13 +1,15 @@
 package org.strykeforce;
 
-import static java.util.concurrent.TimeUnit.*;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.strykeforce.ConnectionEvent.CONNECTED;
 import static org.strykeforce.ConnectionEvent.DISCONNECTED;
 
 import com.codahale.metrics.ConsoleReporter;
+import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.SlidingWindowReservoir;
 import io.reactivex.Observable;
 import io.reactivex.schedulers.Timed;
 import java.net.DatagramPacket;
@@ -15,14 +17,21 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
-import java.util.concurrent.TimeUnit;
 
 public class Robot {
 
   private static final String PING = "ping";
   private static final String PONG = "pong";
   private static final int PONG_SZ = PONG.getBytes().length;
-  private static final int DATA_SZ = 4 * Double.BYTES;
+
+  // From vision_processor.h:
+  //         struct Data {
+  //            jint latency;
+  //            jint reserved; // struct 64-bit member alignment
+  //            jdouble values[4];
+  //        };
+  private static final int DATA_SZ = (2 * Integer.BYTES) + (4 * Double.BYTES);
+
   private static final int PING_INTERVAL = 100;
   private static final int PONG_LIMIT = PING_INTERVAL * 4;
   private static final int PORT = 5555;
@@ -30,6 +39,28 @@ public class Robot {
 
   private final MetricRegistry metrics = new MetricRegistry();
   private final Meter fps = metrics.meter("FPS");
+  private final Histogram latency;
+
+  public Robot() {
+    latency = new Histogram(new SlidingWindowReservoir(500));
+    metrics.register("Latency (ms)", latency);
+  }
+
+  private static void debugDatagramPacket(DatagramPacket p) {
+    byte[] b = Arrays.copyOf(p.getData(), p.getLength());
+    debugByteArray(b);
+  }
+
+  private static void debugByteBuffer(ByteBuffer b) {
+    b.rewind();
+    byte[] bytes = new byte[b.remaining()];
+    b.get(bytes);
+    debugByteArray(bytes);
+  }
+
+  private static void debugByteArray(byte[] b) {
+    System.out.println("Bytes = " + Arrays.toString(b));
+  }
 
   public void start() {
     System.out.printf(
@@ -70,39 +101,22 @@ public class Robot {
             bytes -> {
               byteBuffer.clear();
               byteBuffer.put(bytes, 0, DATA_SZ);
-              byteBuffer.rewind();
               return byteBuffer;
             })
-        .map(ByteBuffer::asDoubleBuffer)
-        .map(
-            db -> {
-              double[] dest = new double[db.capacity()];
-              db.get(dest);
-              return dest;
-            })
-        .map(Arrays::toString)
-        .subscribe(s -> fps.mark(), Throwable::printStackTrace);
+        .map(VisionData::new)
+        .subscribe(
+            vd -> {
+              latency.update(vd.latency);
+              fps.mark();
+            },
+            Throwable::printStackTrace);
 
-    ConsoleReporter reporter = ConsoleReporter.forRegistry(metrics)
-        .convertRatesTo(SECONDS)
-        .convertDurationsTo(MILLISECONDS)
-        .build();
+    ConsoleReporter reporter =
+        ConsoleReporter.forRegistry(metrics)
+            .outputTo(System.err)
+            .convertRatesTo(SECONDS)
+            .convertDurationsTo(MILLISECONDS)
+            .build();
     reporter.start(10, SECONDS);
-  }
-
-  private static void debugDatagramPacket(DatagramPacket p) {
-    byte[] b = Arrays.copyOf(p.getData(), p.getLength());
-    debugByteArray(b);
-  }
-
-  private static void debugByteBuffer(ByteBuffer b) {
-    b.rewind();
-    byte[] bytes = new byte[b.remaining()];
-    b.get(bytes);
-    debugByteArray(bytes);
-  }
-
-  private static void debugByteArray(byte[] b) {
-    System.out.println("Bytes = " + Arrays.toString(b));
   }
 }
