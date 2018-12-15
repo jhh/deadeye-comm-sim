@@ -4,6 +4,7 @@ import io.reactivex.Observable;
 import io.reactivex.Observer;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.schedulers.Schedulers;
+
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -11,6 +12,8 @@ import java.net.SocketAddress;
 import java.net.SocketException;
 
 public class RxUdp {
+
+  public static final int UDP_SIZE = 512;
 
   private final DatagramSocket socket;
 
@@ -22,7 +25,7 @@ public class RxUdp {
     }
   }
 
-  public static Observer<String> observerTo(SocketAddress address) {
+  public static Observer<byte[]> observerTo(SocketAddress address) {
     return new UdpObserver(address);
   }
 
@@ -31,7 +34,7 @@ public class RxUdp {
             e -> {
               DatagramSocket socket = new DatagramSocket(port);
               e.setCancellable(socket::close);
-              byte[] buf = new byte[512];
+              byte[] buf = new byte[UDP_SIZE];
               DatagramPacket packet = new DatagramPacket(buf, buf.length);
               for (int i = 0; ; i++) {
                 try {
@@ -51,7 +54,7 @@ public class RxUdp {
         .subscribeOn(Schedulers.io());
   }
 
-  private static class UdpObserver implements Observer<String> {
+  private static class UdpObserver implements Observer<byte[]> {
     private final SocketAddress address;
     private DatagramSocket socket;
     private Disposable sub;
@@ -72,8 +75,7 @@ public class RxUdp {
     }
 
     @Override
-    public void onNext(String s) {
-      byte[] buf = s.getBytes();
+    public void onNext(byte[] buf) {
       DatagramPacket packet = new DatagramPacket(buf, buf.length, address);
       try {
         socket.send(packet);

@@ -1,36 +1,33 @@
 package org.strykeforce;
 
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.strykeforce.ConnectionEvent.CONNECTED;
-import static org.strykeforce.ConnectionEvent.DISCONNECTED;
-
-import com.codahale.metrics.ConsoleReporter;
-import com.codahale.metrics.Histogram;
-import com.codahale.metrics.Meter;
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.SlidingWindowReservoir;
+import com.codahale.metrics.*;
 import io.reactivex.Observable;
 import io.reactivex.schedulers.Timed;
+
 import java.net.DatagramPacket;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.strykeforce.ConnectionEvent.CONNECTED;
+import static org.strykeforce.ConnectionEvent.DISCONNECTED;
+
 public class Robot {
 
-  private static final String PING = "ping";
-  private static final String PONG = "pong";
-  private static final int PONG_SZ = PONG.getBytes().length;
+  public static final ByteOrder BYTE_ORDER = ByteOrder.LITTLE_ENDIAN;
 
-  // From vision_processor.h:
-  //         struct Data {
-  //            jint latency;
-  //            jint reserved; // struct 64-bit member alignment
-  //            jdouble values[4];
-  //        };
-  private static final int DATA_SZ = (2 * Integer.BYTES) + (4 * Double.BYTES);
+  private static final byte[] PING_BYTES =
+      ByteBuffer.allocate(4).order(BYTE_ORDER).putInt(VisionData.TYPE_PING).array();
+
+  //  From FrameProcessor.h:
+  //  struct Data {
+  //    jint type;
+  //    jint latency;
+  //    jdouble values[4];
+  //  };
 
   private static final int PING_INTERVAL = 100;
   private static final int PONG_LIMIT = PING_INTERVAL * 4;
@@ -68,19 +65,20 @@ public class Robot {
 
     // send pings
     Observable.interval(PING_INTERVAL, MILLISECONDS)
-        .map(i -> PING)
+        .map(i -> PING_BYTES)
         .subscribe(RxUdp.observerTo(ADDRESS));
 
     // monitor pongs
     System.out.printf("Listening for pongs on port %d with limit %d ms.%n", PORT, PONG_LIMIT);
 
-    Observable<DatagramPacket> messages = RxUdp.observableFrom(PORT).publish().autoConnect();
+    Observable<DatagramPacket> packetObservable =
+        RxUdp.observableFrom(PORT).publish().autoConnect();
 
-    Observable<Timed<String>> pongs =
-        messages
-            .filter(p -> p.getLength() == PONG_SZ)
-            .map(p -> new String(p.getData(), 0, p.getLength()))
-            .timestamp(MILLISECONDS);
+    Observable<VisionData> visionDataObservable =
+        packetObservable.map(DatagramPacket::getData).map(VisionData::new);
+
+    Observable<Timed<VisionData>> pongs =
+        visionDataObservable.filter(vd -> vd.type == VisionData.TYPE_PONG).timestamp(MILLISECONDS);
 
     Observable<Timed<Long>> heartbeat =
         Observable.interval(PING_INTERVAL / 2, MILLISECONDS).timestamp(MILLISECONDS);
@@ -89,21 +87,12 @@ public class Robot {
         .distinctUntilChanged(time -> time > PONG_LIMIT)
         .map(time -> time > PONG_LIMIT ? DISCONNECTED : CONNECTED)
         .startWith(DISCONNECTED)
-        .subscribe(System.out::println);
+        .subscribe(System.out::println, Throwable::printStackTrace);
 
-    ByteBuffer byteBuffer = ByteBuffer.allocate(DATA_SZ);
-    byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
-
-    messages
-        .filter(p -> p.getLength() == DATA_SZ)
-        .map(DatagramPacket::getData)
-        .map(
-            bytes -> {
-              byteBuffer.clear();
-              byteBuffer.put(bytes, 0, DATA_SZ);
-              return byteBuffer;
-            })
-        .map(VisionData::new)
+    visionDataObservable
+        //        .filter(vd -> vd.type != VisionData.TYPE_PONG)
+        .doOnNext(System.out::println)
+        .filter(vd -> vd.type == VisionData.TYPE_FRAME_DATA)
         .subscribe(
             vd -> {
               latency.update(vd.latency);
