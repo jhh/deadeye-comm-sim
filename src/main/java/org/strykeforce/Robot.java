@@ -90,8 +90,6 @@ public class Robot {
         .subscribe(System.out::println, Throwable::printStackTrace);
 
     visionDataObservable
-        //        .filter(vd -> vd.type != VisionData.TYPE_PONG)
-        .doOnNext(System.out::println)
         .filter(vd -> vd.type == VisionData.TYPE_FRAME_DATA)
         .subscribe(
             vd -> {

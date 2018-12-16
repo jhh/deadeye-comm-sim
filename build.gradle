@@ -14,10 +14,10 @@ dependencies {
 //    compile 'org.slf4j:slf4j-api:1.7.25'
 
     // https://mvnrepository.com/artifact/io.reactivex.rxjava2/rxjava
-    compile group: 'io.reactivex.rxjava2', name: 'rxjava', version: '2.1.7'
+    compile group: 'io.reactivex.rxjava2', name: 'rxjava', version: '2.2.4'
 
     // https://mvnrepository.com/artifact/com.jakewharton.rxrelay2/rxrelay
-    compile group: 'com.jakewharton.rxrelay2', name: 'rxrelay', version: '2.0.0'
+    compile group: 'com.jakewharton.rxrelay2', name: 'rxrelay', version: '2.1.0'
 
     // https://mvnrepository.com/artifact/com.squareup.moshi/moshi
     compile group: 'com.squareup.moshi', name: 'moshi', version: '1.5.0'

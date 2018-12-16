@@ -25,7 +25,7 @@ public class VisionData {
         for (int i = 0; i < 4; i++) {
           data[i] = buffer.getDouble();
         }
-        //        System.out.println("FRAME DATA");
+//        System.out.println("FRAME DATA:" + Arrays.toString(data));
         break;
 
       case TYPE_PONG:
