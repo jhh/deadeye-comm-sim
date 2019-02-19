@@ -6,12 +6,15 @@ plugins {
 
 repositories {
     jcenter()
+    mavenLocal()
 }
 
 mainClassName = 'org.strykeforce.Main'
 
 dependencies {
-//    compile 'org.slf4j:slf4j-api:1.7.25'
+    compile 'org.slf4j:slf4j-api:1.7.25'
+
+    compile group: 'org.strykeforce.thirdcoast', name: 'deadeye', version: '18.7.5'
 
     // https://mvnrepository.com/artifact/io.reactivex.rxjava2/rxjava
     compile group: 'io.reactivex.rxjava2', name: 'rxjava', version: '2.2.4'
@@ -23,7 +26,7 @@ dependencies {
     compile group: 'com.squareup.moshi', name: 'moshi', version: '1.5.0'
 
     // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-core
-    compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: '4.0.0'
+    compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: '4.0.2'
 
     // https://mvnrepository.com/artifact/ch.qos.logback/logback-classic
     compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.3'
